@@ -1,13 +1,13 @@
-from pymongo import MongoClient
+import db
 
-# Create a MongoDB client and connect to the database
-client = MongoClient('mongodb://localhost:27017/')
-db = client['movie_booking']
+db_instance = db.db
+movies_collection = db_instance['movies']
 
-# Define your collection name
-movies_collection = db['movies']
 
-# Define the mock movie data
+# Insert mock movie data into the movies collection handly, 
+# can be done at the creat_movie method at the movie.py module
+# Notice than by this insertetion the limits are not verified this insertion is just for handly insertetion of mock data only
+
 mock_movie_data = [
     {
         "title": "The Lion King",
@@ -51,7 +51,5 @@ mock_movie_data = [
     }
 ]
 
-# Insert mock movie data into the collection
 movies_collection.insert_many(mock_movie_data)
-
-print("Mock movie data inserted successfully!")
+print("Movie mock data inserted successfully-please make sure that more then 3 movies do not play at the same time")

@@ -1,12 +1,13 @@
-from pymongo import MongoClient
+import db
 
-# Connect to the MongoDB database
-client = MongoClient('mongodb://localhost:27017/')
-db = client['movie_booking']
-movies_collection = db['movies']
+db_instance = db.db
+movies_collection = db_instance['movies']
 
-# Delete all documents from the collection
+#This module is responsible to delete all documents from the data base and reset it.
+
 result = movies_collection.delete_many({})
 
-# Print the number of deleted documents
+# Print the number of deleted documents and sucssesful message
 print(f"Deleted {result.deleted_count} documents from the collection.")
+print("The data base is clear now")
+

@@ -15,7 +15,6 @@ booking_bp = Blueprint('booking', __name__)
 def create_movie():
     data = request.json
 
-    # Convert start_time and end_time to datetime objects
     try:
         start_time = datetime.strptime(data['start_time'], '%H:%M').time()
         end_time = datetime.strptime(data['end_time'], '%H:%M').time()
@@ -23,7 +22,6 @@ def create_movie():
         return jsonify({"error": "Invalid time format. Use HH:MM."}), 400
     
 
-    # Check if end_time is after start_time
     if end_time <= start_time:
         return jsonify({"error": "End time must be after start time."}), 400
 
@@ -31,7 +29,6 @@ def create_movie():
         datetime.strptime(data['day'], '%d-%m-%Y')
     except ValueError:
         return jsonify({"error": "Invalid day format. Use DD-MM-YYYY."}), 400
-    # Check for conflicting movies
     existing_movies = db.movies.find({
         'day': data['day']
     })
@@ -47,7 +44,6 @@ def create_movie():
     if conflicting_movies >= 3:
         return jsonify({"error": "There are already 3 movies playing at the same time."}), 400
 
-    # Insert new movie
     new_movie = {
         'title': data['title'],
         'description': data['description'],
@@ -69,7 +65,6 @@ def get_available_movies():
     if not day:
         return jsonify({"error": "Day parameter is missing."}), 400
 
-    # Query the database to get available movies
     available_movies = db.movies.find({
         'day': day,
         'start_time': {'$gte': '00:00'},
@@ -93,20 +88,16 @@ def get_available_movies():
 def book_ticket():
     data = request.json
 
-    # Check for user's booking limitations
     user_personal_id = data.get('personal_id')
     movie_id = data.get('movie_id')
     
-    # Fetch 'day' from the movie details
     movie = db.movies.find_one({'_id': ObjectId(movie_id)})
     if not movie:
         return jsonify({"error": "Movie not found."}), 404
 
-    # Extract start_time and end_time from the movie
     start_time = datetime.strptime(movie['start_time'], '%H:%M').time()
     end_time = datetime.strptime(movie['end_time'], '%H:%M').time()
 
-    # Query user's bookings for the specific personal ID and day
     user_day_bookings = db.bookings.find({
         'personal_id': user_personal_id,
         'day': movie['day']
@@ -134,15 +125,38 @@ def book_ticket():
     if user_day_booking_count >= 2:
         return jsonify({"error": "You can't book tickets for more than two movies in a day."}), 400
 
-    # Decrease available_tickets and insert booking
-    db.movies.update_one({'_id': ObjectId(movie_id)}, {'$inc': {'available_tickets': -1}})
-    ticket_id = str(uuid.uuid4())
-    booking = {
-        'movie_id': movie_id,
-        'personal_id': user_personal_id,
-        'day': movie['day'],
-        'ticket_id': ticket_id
-    }
-    db.bookings.insert_one(booking)
+   # Update available tickets count and create a booking
+    if movie['available_tickets'] > 0:
+        db.movies.update_one({'_id': ObjectId(movie_id)}, {'$inc': {'available_tickets': -1}})
+        ticket_id = str(uuid.uuid4())
+        booking = {
+            'movie_id': movie_id,
+            'personal_id': user_personal_id,
+            'day': movie['day'],
+            'ticket_id': ticket_id
+        }
+        db.bookings.insert_one(booking)
+        return jsonify({"message": "Ticket booked successfully!", "ticket_id": ticket_id}), 201
+    else:
+        return jsonify({"error": "No available tickets for this movie."}), 400
+    
+@booking_bp.route('/cancel', methods=['DELETE'])
+def cancel_ticket():
+    data = request.json
 
-    return jsonify({"message": "Ticket booked successfully!", "ticket_id": ticket_id}), 201
+    user_personal_id = data.get('personal_id')
+    user_ticket_id = data.get('ticket_id')
+
+    booking = db.bookings.find_one({
+        'ticket_id': user_ticket_id,
+        'personal_id': user_personal_id
+    })
+    if not booking:
+        return jsonify({"error": "Ticket not found or not owned by the user."}), 404
+
+    movie_id = booking['movie_id']
+
+    db.movies.update_one({'_id': ObjectId(movie_id)}, {'$inc': {'available_tickets': 1}})
+    db.bookings.delete_one({'ticket_id': user_ticket_id, 'personal_id': user_personal_id})
+
+    return jsonify({"message": "Ticket canceled successfully!"}), 200
